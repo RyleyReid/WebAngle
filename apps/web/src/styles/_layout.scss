@@ -1,0 +1,206 @@
+@use "variables" as *;
+
+.app {
+  min-height: 100vh;
+}
+
+.header {
+  border-bottom: 1px solid $stone-200;
+  background: white;
+  padding: $space-4;
+}
+
+.header__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.header__tagline {
+  font-size: 0.875rem;
+  color: $stone-500;
+  margin: 0;
+}
+
+.main {
+  max-width: $max-width-content;
+  margin-left: auto;
+  margin-right: auto;
+  padding: $space-8 $space-4;
+}
+
+.form {
+  margin-bottom: $space-8;
+}
+
+.form-row {
+  display: flex;
+  gap: $space-2;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid $stone-300;
+  border-radius: $radius-lg;
+  padding: $space-3 $space-4;
+  font-size: 0.875rem;
+
+  &:focus {
+    outline: none;
+    border-color: $amber-600;
+    box-shadow: 0 0 0 1px $amber-600;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn {
+  border-radius: $radius-lg;
+  padding: $space-3 $space-4;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn--primary {
+  background: $amber-600;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: $amber-700;
+  }
+}
+
+.btn--copy {
+  flex-shrink: 0;
+  border-radius: $radius-lg;
+  padding: $space-1 $space-3;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: $amber-100;
+  color: $amber-800;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background: $amber-200;
+  }
+}
+
+.error-banner {
+  margin-bottom: $space-6;
+  padding: $space-3 $space-4;
+  border-radius: $radius-lg;
+  border: 1px solid $red-200;
+  background: $red-50;
+  font-size: 0.875rem;
+  color: $red-800;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: $space-8;
+}
+
+.section {
+  border-radius: $radius-lg;
+  border: 1px solid $stone-200;
+  background: white;
+  padding: $space-4;
+}
+
+.section__title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $stone-500;
+  margin: 0 0 $space-2 0;
+}
+
+.section__title--spaced {
+  margin-bottom: $space-3;
+}
+
+.link {
+  color: $amber-700;
+  text-decoration: underline;
+}
+
+.link--muted {
+  margin-left: $space-2;
+  font-size: 0.75rem;
+  color: $stone-400;
+  text-decoration: none;
+}
+
+.contact-list,
+.tech-list {
+  font-size: 0.875rem;
+}
+
+.contact-list .link {
+  margin-right: $space-2;
+}
+
+.no-data {
+  color: $stone-400;
+}
+
+.opportunities-list {
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+}
+
+.opportunity-card {
+  border-radius: 4px;
+  border: 1px solid $stone-100;
+  background: $stone-50;
+  padding: $space-3;
+}
+
+.opportunity-card__title {
+  font-weight: 500;
+  color: $stone-800;
+  margin: 0;
+}
+
+.opportunity-card__text {
+  margin: $space-1 0 0 0;
+  font-size: 0.875rem;
+  color: $stone-600;
+}
+
+.opportunity-card__text--muted {
+  color: $stone-500;
+}
+
+.pitch-row {
+  margin-top: $space-2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $space-2;
+}
+
+.pitch-quote {
+  flex: 1;
+  padding: $space-2 $space-3;
+  border-radius: 4px;
+  background: white;
+  border: 1px solid $stone-200;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: $stone-700;
+  margin: 0;
+}
