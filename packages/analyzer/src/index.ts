@@ -31,6 +31,20 @@ interface PageSpeedResult {
   };
 }
 
+export function detectDynamicSignals(html: string): {
+  hasRootDiv: boolean;
+  heavyJS: boolean;
+  hydrationHints: boolean;
+} {
+  return {
+    hasRootDiv:
+      html.includes('id="root"') || html.includes('id="__next"'),
+    heavyJS: (html.match(/<script/gi) ?? []).length > 10,
+    hydrationHints:
+      html.includes("__NEXT_DATA__") || html.includes("data-reactroot"),
+  };
+}
+
 const TECH_PATTERNS: Array<{ hint: TechHint; test: (r: ScrapeResult) => boolean }> = [
   {
     hint: "wordpress",
@@ -76,10 +90,19 @@ export function detectTechStack(scrape: ScrapeResult): TechStack {
     if (test(scrape)) hints.push(hint);
   }
   if (hints.length === 0) hints.push("unknown");
+
+  const dynamic = detectDynamicSignals(scrape.html);
+  const isDynamic =
+    dynamic.hasRootDiv || dynamic.hydrationHints || dynamic.heavyJS;
+  const framework =
+    dynamic.hasRootDiv || dynamic.hydrationHints ? "React-based" : undefined;
+
   return {
     hints: [...new Set(hints)],
     generator: scrape.metaTags["generator"],
     scriptSources: scrape.scriptSources.slice(0, 30),
+    ...(framework && { framework }),
+    ...(isDynamic && { isDynamic }),
   };
 }
 

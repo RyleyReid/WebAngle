@@ -1,8 +1,9 @@
 import * as cheerio from "cheerio";
 import type { ContactData, ScrapeResult } from "@webangle/types";
 
-const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const PHONE_REGEX = /(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/g;
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/gi;
+const PHONE_REGEX =
+  /(\+?\d{1,2}[\s.-]?)?(\(?\d{3}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}/g;
 
 const SOCIAL_DOMAINS: Record<string, string> = {
   "facebook.com": "facebook",
@@ -48,6 +49,34 @@ function extractMailtos($: cheerio.CheerioAPI): string[] {
   return [...new Set(emails)];
 }
 
+/**
+ * Extract same-origin internal link pathnames from HTML.
+ * Used to find /contact, /about, etc. for multi-page crawl.
+ */
+export function extractInternalLinks(html: string, baseUrl: string): string[] {
+  const $ = cheerio.load(html);
+  let base: URL;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return [];
+  }
+  const links = new Set<string>();
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!href) return;
+    try {
+      const url = new URL(href, base);
+      if (url.origin === base.origin) {
+        links.add(url.pathname);
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+  });
+  return [...links];
+}
+
 /** Normalize URL for fetching (add protocol if missing) */
 export function normalizeUrl(input: string): string {
   let url = input.trim();
@@ -81,11 +110,16 @@ export async function scrape(url: string): Promise<ScrapeResult> {
   const html = await res.text();
   const $ = cheerio.load(html);
 
-  const bodyText = $("body").text().replace(/\s+/g, " ");
+  const bodyText = $("body").text().replace(/\s+/g, " ").trim();
   const mailtos = extractMailtos($);
-  const emailsFromText = extractEmails(bodyText);
-  const emails = [...new Set([...mailtos, ...emailsFromText])].slice(0, 10);
-  const phones = extractPhones(bodyText);
+  const emailsFromBody = extractEmails(bodyText);
+  const emailsFromHtml = extractEmails(html);
+  const emails = [...new Set([...mailtos, ...emailsFromBody, ...emailsFromHtml])].slice(
+    0,
+    15
+  );
+  const phonesRaw = extractPhones(bodyText);
+  const phones = [...new Set(phonesRaw)].slice(0, 10);
   const socialLinks = extractSocialLinks($);
 
   const contact: ContactData = { emails, phones, socialLinks };
@@ -112,6 +146,7 @@ export async function scrape(url: string): Promise<ScrapeResult> {
 
   const footer = $("footer").first().text().replace(/\s+/g, " ").slice(0, 500);
   const header = $("header").first().text().replace(/\s+/g, " ").slice(0, 300);
+  const visibleText = bodyText.slice(0, 500);
 
   return {
     html,
@@ -121,5 +156,6 @@ export async function scrape(url: string): Promise<ScrapeResult> {
     ctaText: ctaUnique,
     footerSnippet: footer || undefined,
     headerSnippet: header || undefined,
+    visibleText: visibleText || undefined,
   };
 }

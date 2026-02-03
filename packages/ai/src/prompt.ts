@@ -31,7 +31,7 @@ function buildUserPrompt(ctx: AnalysisContext): string {
     `Website: ${ctx.url}`,
     ``,
     `Contact found: emails ${ctx.contact.emails.length}, phones ${ctx.contact.phones.length}, social: ${Object.keys(ctx.contact.socialLinks).join(", ") || "none"}.`,
-    `Tech hints: ${ctx.techStack.hints.join(", ")}. Generator: ${ctx.techStack.generator ?? "none"}.`,
+    `Tech hints: ${ctx.techStack.hints.join(", ")}. Generator: ${ctx.techStack.generator ?? "none"}.${ctx.techStack.framework ? ` Framework: ${ctx.techStack.framework}.` : ""}${ctx.techStack.isDynamic ? " Site is dynamic/SPA." : ""}`,
     `Site type: ${ctx.classification.siteType} (confidence ${ctx.classification.confidence}).`,
     `Performance: mobile score ${ctx.performance.mobileScore}/100${ctx.performance.lcp != null ? `, LCP ~${ctx.performance.lcp}s` : ""}${ctx.performance.cls != null ? `, CLS ${ctx.performance.cls}` : ""}${ctx.performance.tbt != null ? `, TBT ${ctx.performance.tbt}ms` : ""}.`,
     ``,

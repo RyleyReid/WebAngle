@@ -1,5 +1,10 @@
-import type { AnalysisResult, AnalyzeRequest } from "@webangle/types";
-import { scrape, normalizeUrl } from "@webangle/scraper";
+import type {
+  AnalysisResult,
+  AnalyzeRequest,
+  ContactData,
+  ScrapeResult,
+} from "@webangle/types";
+import { scrape, normalizeUrl, extractInternalLinks } from "@webangle/scraper";
 import {
   detectTechStack,
   getPageSpeedMetrics,
@@ -7,54 +12,227 @@ import {
 } from "@webangle/analyzer";
 import { generateOpportunities } from "@webangle/ai";
 import { getCached, setCached } from "./cache.js";
+import { logger } from "./logger.js";
+
+/** Same-origin paths we crawl for contact + content (opinionated, not recursive). */
+const IMPORTANT_PATHS = [
+  "/contact",
+  "/about",
+  "/about-us",
+  "/services",
+  "/pricing",
+  "/work",
+  "/portfolio",
+];
 
 export type AnalyzeOptions = {
   openaiApiKey: string;
 };
 
+type PageData = ScrapeResult & { url: string };
+
+function mergeContacts(pages: PageData[]): ContactData {
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+  const socialLinks: Record<string, string> = {};
+
+  for (const page of pages) {
+    page.contact.emails.forEach((e) => emails.add(e));
+    page.contact.phones.forEach((p) => phones.add(p));
+    Object.assign(socialLinks, page.contact.socialLinks);
+  }
+
+  return {
+    emails: [...emails],
+    phones: [...phones],
+    socialLinks,
+  };
+}
+
+function summarizeScrape(url: string, s: ScrapeResult): Record<string, unknown> {
+  return {
+    url,
+    htmlLength: s.html?.length ?? 0,
+    emails: s.contact?.emails?.length ?? 0,
+    phones: s.contact?.phones?.length ?? 0,
+    socialKeys: Object.keys(s.contact?.socialLinks ?? {}),
+    ctaCount: s.ctaText?.length ?? 0,
+    visibleTextLength: s.visibleText?.length ?? 0,
+    hasTitle: !!s.metaTags?.title,
+  };
+}
+
 export async function runAnalysis(
   body: AnalyzeRequest,
   options: AnalyzeOptions
 ): Promise<AnalysisResult> {
-  const url = normalizeUrl(body.url);
+  const rawUrl = body.url;
+  const url = normalizeUrl(rawUrl);
+  const analysisId = `${url.slice(0, 60)}${url.length > 60 ? "…" : ""}`;
+
+  logger.info("analyze:start", "Analysis started", {
+    rawUrl,
+    normalizedUrl: url,
+    analysisId,
+  });
+
   const cached = await getCached(url);
-  if (cached) return cached;
+  if (cached) {
+    logger.info("analyze:cache", "Cache hit, returning cached result", {
+      url,
+      opportunitiesCount: cached.opportunities?.length ?? 0,
+    });
+    return cached;
+  }
+  logger.debug("analyze:cache", "Cache miss, running full analysis", { url });
 
   const start = Date.now();
-  const scrapeResult = await scrape(url);
+
+  // 1. Homepage
+  let homepage: ScrapeResult;
+  try {
+    logger.debug("analyze:scrape:homepage", "Fetching homepage", { url });
+    homepage = await scrape(url);
+    logger.info("analyze:scrape:homepage", "Homepage scrape completed", {
+      ...summarizeScrape(url, homepage),
+      durationMs: Date.now() - start,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    logger.error("analyze:scrape:homepage", "Homepage scrape failed", {
+      url,
+      error: message,
+      stack,
+    });
+    throw err;
+  }
+
+  const homepagePage: PageData = { url, ...homepage };
+
+  // 2. Internal links
+  const allInternalPaths = extractInternalLinks(homepage.html, url);
+  logger.debug("analyze:internal-links", "Internal links extracted", {
+    total: allInternalPaths.length,
+    paths: allInternalPaths.slice(0, 30),
+  });
+
+  const internalPaths = allInternalPaths
+    .filter((p) =>
+      IMPORTANT_PATHS.some((key) => p === key || p.startsWith(key + "/"))
+    )
+    .slice(0, 5);
+
+  logger.info("analyze:internal-links", "Filtered to important paths", {
+    IMPORTANT_PATHS,
+    matched: internalPaths,
+    count: internalPaths.length,
+  });
+
+  const extraUrls = internalPaths.map((p) => new URL(p, url).toString());
+  const extraScrapes = await Promise.all(
+    extraUrls.map(async (u) => {
+      try {
+        const result = await scrape(u);
+        logger.debug("analyze:scrape:extra", "Extra page scraped", {
+          ...summarizeScrape(u, result),
+        });
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn("analyze:scrape:extra", "Extra page scrape failed", {
+          url: u,
+          error: message,
+        });
+        return null;
+      }
+    })
+  );
+
+  const extraPages: PageData[] = extraScrapes
+    .map((s, i) => (s ? { url: extraUrls[i], ...s } : null))
+    .filter((p): p is PageData => p !== null);
+
+  logger.info("analyze:scrape:extra", "Extra pages summary", {
+    requested: extraUrls.length,
+    succeeded: extraPages.length,
+    failed: extraUrls.length - extraPages.length,
+  });
+
+  const pages = [homepagePage, ...extraPages];
+  const contact = mergeContacts(pages);
   const scrapeDurationMs = Date.now() - start;
 
+  logger.info("analyze:merge", "Contacts merged", {
+    pageCount: pages.length,
+    totalEmails: contact.emails.length,
+    totalPhones: contact.phones.length,
+    socialKeys: Object.keys(contact.socialLinks),
+    scrapeDurationMs,
+  });
+
   const [techStack, performance, classification] = await Promise.all([
-    Promise.resolve(detectTechStack(scrapeResult)),
+    Promise.resolve(detectTechStack(homepage)),
     getPageSpeedMetrics(url),
-    Promise.resolve(classifySite(scrapeResult)),
+    Promise.resolve(classifySite(homepage)),
   ]);
 
-  const contentSummary = [
-    `Meta: ${JSON.stringify(scrapeResult.metaTags)}`,
-    `CTAs: ${scrapeResult.ctaText.slice(0, 10).join(" | ")}`,
-    scrapeResult.footerSnippet ? `Footer: ${scrapeResult.footerSnippet}` : "",
-    scrapeResult.headerSnippet ? `Header: ${scrapeResult.headerSnippet}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  logger.debug("analyze:signals", "Tech and classification", {
+    techHints: techStack.hints,
+    framework: techStack.framework,
+    isDynamic: techStack.isDynamic,
+    siteType: classification.siteType,
+    confidence: classification.confidence,
+    mobileScore: performance.mobileScore,
+  });
 
-  const opportunities = await generateOpportunities(
-    {
+  // 3. Multi-page context for AI
+  const contentSummary = pages
+    .map((p) => {
+      const title = p.metaTags?.title ?? "";
+      const ctas = (p.ctaText ?? []).slice(0, 5).join(" | ");
+      const snippet = (p.visibleText ?? "").slice(0, 400);
+      return `URL: ${p.url}\nTitle: ${title}\nCTAs: ${ctas}\nSnippet: ${snippet}`;
+    })
+    .join("\n---\n");
+
+  logger.debug("analyze:content-summary", "Content summary for AI", {
+    contentSummaryLength: contentSummary.length,
+    snippet: contentSummary.slice(0, 300) + (contentSummary.length > 300 ? "…" : ""),
+  });
+
+  let opportunities: AnalysisResult["opportunities"];
+  try {
+    opportunities = await generateOpportunities(
+      {
+        url,
+        contact,
+        techStack,
+        performance,
+        classification,
+        contentSummary,
+      },
+      { apiKey: options.openaiApiKey }
+    );
+    logger.info("analyze:ai", "AI opportunities generated", {
+      count: opportunities.length,
+      ids: opportunities.map((o) => o.id),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    logger.error("analyze:ai", "AI generation failed", {
       url,
-      contact: scrapeResult.contact,
-      techStack,
-      performance,
-      classification,
-      contentSummary,
-    },
-    { apiKey: options.openaiApiKey }
-  );
+      error: message,
+      stack,
+    });
+    throw err;
+  }
 
   const result: AnalysisResult = {
     url,
     analyzedAt: new Date().toISOString(),
-    contact: scrapeResult.contact,
+    contact,
     techStack,
     performance,
     classification,
@@ -63,5 +241,11 @@ export async function runAnalysis(
   };
 
   await setCached(url, result);
+  logger.info("analyze:done", "Analysis completed and cached", {
+    url,
+    totalDurationMs: Date.now() - start,
+    opportunitiesCount: result.opportunities.length,
+  });
+
   return result;
 }

@@ -23,6 +23,9 @@ export interface TechStack {
   hints: TechHint[];
   generator?: string;
   scriptSources: string[];
+  /** e.g. "React-based" when SPA signals detected */
+  framework?: string;
+  isDynamic?: boolean;
 }
 
 /** Performance metrics from PageSpeed (or similar) */
@@ -94,4 +97,6 @@ export interface ScrapeResult {
   ctaText: string[];
   footerSnippet?: string;
   headerSnippet?: string;
+  /** First ~400–500 chars of body text for AI context */
+  visibleText?: string;
 }

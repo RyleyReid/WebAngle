@@ -2,6 +2,7 @@ import "dotenv/config";
 import http from "node:http";
 import type { AnalyzeRequest } from "@webangle/types";
 import { runAnalysis } from "./analyze.js";
+import { logger } from "./logger.js";
 
 const PORT = Number(process.env.PORT) || 3001;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
@@ -41,11 +42,15 @@ const server = http.createServer(async (req, res) => {
   const body = (await parseBody(req)) as AnalyzeRequest | null;
   const url = body?.url;
   if (!url || typeof url !== "string") {
+    logger.warn("server", "Invalid request body", { body: body ?? null });
     send(res, 400, { error: "Missing or invalid body. Expected { url: string }." });
     return;
   }
 
+  logger.info("server", "POST /analyze received", { url });
+
   if (!OPENAI_API_KEY) {
+    logger.error("server", "OPENAI_API_KEY is not set", {});
     send(res, 500, { error: "OPENAI_API_KEY is not set." });
     return;
   }
@@ -55,10 +60,18 @@ const server = http.createServer(async (req, res) => {
       { url },
       { openaiApiKey: OPENAI_API_KEY }
     );
+    logger.info("server", "Analysis completed, sending 200", {
+      url: result.url,
+      opportunitiesCount: result.opportunities?.length ?? 0,
+    });
     send(res, 200, result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
-    console.error("Analyze error:", err);
+    logger.error("server", "Analysis failed", {
+      url,
+      error: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     send(res, 500, { error: message });
   }
 });
