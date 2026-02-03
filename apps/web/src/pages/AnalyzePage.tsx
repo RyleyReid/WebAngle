@@ -15,7 +15,7 @@ interface TechStack {
 }
 
 interface PerformanceMetrics {
-  mobileScore: number;
+  mobileScore: number | null;
   lcp?: number;
   cls?: number;
   tbt?: number;
@@ -170,7 +170,7 @@ export default function AnalyzePage() {
                 {result.classification.confidence})
               </p>
               <p>
-                Mobile score: {result.performance.mobileScore}/100
+                Mobile score: {result.performance.mobileScore != null ? `${result.performance.mobileScore}/100` : "— (no data)"}
                 {result.performance.lcp != null &&
                   ` · LCP ~${result.performance.lcp}s`}
                 {result.performance.tbt != null &&

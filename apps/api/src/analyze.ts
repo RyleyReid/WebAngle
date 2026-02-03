@@ -5,14 +5,26 @@ import type {
   ScrapeResult,
 } from "@webangle/types";
 import { scrape, normalizeUrl, extractInternalLinks } from "@webangle/scraper";
+import { renderPage } from "@webangle/renderer";
 import {
   detectTechStack,
   getPageSpeedMetrics,
   classifySite,
 } from "@webangle/analyzer";
 import { generateOpportunities } from "@webangle/ai";
+import { scoreStyles } from "@webangle/style-analyzer";
+import type { StyleSignals } from "@webangle/style-analyzer";
 import { getCached, setCached } from "./cache.js";
 import { logger } from "./logger.js";
+
+/** Detect HTML shell only (SPA before hydration). */
+function isHtmlShell(homepage: ScrapeResult): boolean {
+  const visible = homepage.visibleText ?? "";
+  return (
+    visible.length < 200 ||
+    /enable\s+JavaScript|enable JavaScript to run this app/i.test(visible)
+  );
+}
 
 /** Same-origin paths we crawl for contact + content (opinionated, not recursive). */
 const IMPORTANT_PATHS = [
@@ -47,6 +59,16 @@ function mergeContacts(pages: PageData[]): ContactData {
     phones: [...phones],
     socialLinks,
   };
+}
+
+/** Treat 0 or missing as "no reliable data"; use fallback so one bad metric doesn't poison overall score. */
+function normalizeScore(
+  value: number | null | undefined,
+  fallback = 70
+): number {
+  if (typeof value !== "number") return fallback;
+  if (value <= 0) return fallback;
+  return value;
 }
 
 function summarizeScrape(url: string, s: ScrapeResult): Record<string, unknown> {
@@ -88,7 +110,7 @@ export async function runAnalysis(
 
   const start = Date.now();
 
-  // 1. Homepage
+  // 1. Homepage (fetch first)
   let homepage: ScrapeResult;
   try {
     logger.debug("analyze:scrape:homepage", "Fetching homepage", { url });
@@ -106,6 +128,50 @@ export async function runAnalysis(
       stack,
     });
     throw err;
+  }
+
+  logger.warn("DEBUG_RENDER_CHECK", "Render detection values", {
+    visibleTextLength: homepage.visibleText?.length ?? 0,
+    includesEnableJs: (homepage.visibleText ?? "").includes("enable JavaScript"),
+  });
+
+  // 2. Conditional render: if HTML shell only (SPA), run headless and re-scrape; extract style signals when we render
+  let renderUsed = false;
+  let styleSignals: StyleSignals | null = null;
+  let styleScore: ReturnType<typeof scoreStyles> | null = null;
+
+  const needsRender = isHtmlShell(homepage);
+  if (needsRender) {
+    logger.info("analyze:render", "Detected JS-only site, rendering page", {
+      url,
+      visibleTextLength: homepage.visibleText?.length ?? 0,
+      visibleSnippet: (homepage.visibleText ?? "").slice(0, 80),
+    });
+    try {
+      const renderStart = Date.now();
+      const rendered = await renderPage(url);
+      renderUsed = true;
+      styleSignals = rendered.styleSignals;
+      styleScore = scoreStyles(rendered.styleSignals);
+      logger.info("analyze:render", "Render completed", {
+        url,
+        htmlLength: rendered.html.length,
+        textLength: rendered.text.length,
+        styleScore: styleScore.score,
+        durationMs: Date.now() - renderStart,
+      });
+      homepage = await scrape(url, { htmlOverride: rendered.html });
+      logger.info("analyze:scrape:homepage", "Re-scraped from rendered HTML", {
+        ...summarizeScrape(url, homepage),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("analyze:render", "Render failed, using HTML shell", {
+        url,
+        error: message,
+      });
+      // homepage stays as-is (shell)
+    }
   }
 
   const homepagePage: PageData = { url, ...homepage };
@@ -172,7 +238,7 @@ export async function runAnalysis(
   });
 
   const [techStack, performance, classification] = await Promise.all([
-    Promise.resolve(detectTechStack(homepage)),
+    Promise.resolve(detectTechStack(homepage, { renderUsed })),
     getPageSpeedMetrics(url),
     Promise.resolve(classifySite(homepage)),
   ]);
@@ -201,6 +267,41 @@ export async function runAnalysis(
     snippet: contentSummary.slice(0, 300) + (contentSummary.length > 300 ? "…" : ""),
   });
 
+  const styleContext =
+    styleSignals && styleScore
+      ? {
+          score: styleScore.score,
+          notes: styleScore.notes,
+          fontCount: styleSignals.fontCount,
+          colorCount: styleSignals.colorCount,
+          usesCssVariables: styleSignals.usesCssVariables,
+        }
+      : null;
+
+  const perfScore = normalizeScore(performance.mobileScore, 70);
+  const styleFinal = normalizeScore(styleScore?.score, 70);
+  const contentScoreRaw = Math.round(classification.confidence * 100);
+  const contentScore = normalizeScore(contentScoreRaw, 70);
+
+  const overallScore = Math.max(
+    Math.round(perfScore * 0.4 + styleFinal * 0.3 + contentScore * 0.3),
+    1
+  );
+
+  logger.debug("analyze:score", "Score normalization", {
+    raw: {
+      mobile: performance.mobileScore,
+      style: styleScore?.score,
+      content: contentScoreRaw,
+    },
+    normalized: {
+      mobile: perfScore,
+      style: styleFinal,
+      content: contentScore,
+    },
+    overallScore,
+  });
+
   let opportunities: AnalysisResult["opportunities"];
   try {
     opportunities = await generateOpportunities(
@@ -211,6 +312,7 @@ export async function runAnalysis(
         performance,
         classification,
         contentSummary,
+        style: styleContext,
       },
       { apiKey: options.openaiApiKey }
     );
@@ -237,7 +339,7 @@ export async function runAnalysis(
     performance,
     classification,
     opportunities,
-    meta: { scrapeDurationMs, cacheHit: false },
+    meta: { scrapeDurationMs, cacheHit: false, overallScore },
   };
 
   await setCached(url, result);

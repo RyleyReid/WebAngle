@@ -91,23 +91,16 @@ export function normalizeUrl(input: string): string {
   }
 }
 
+export interface ScrapeOptions {
+  /** When set, skip fetch and parse this HTML (e.g. from headless render). */
+  htmlOverride?: string;
+}
+
 /**
- * Fetch HTML and parse into ScrapeResult (contact, meta, scripts, CTAs).
+ * Parse HTML string into ScrapeResult (contact, meta, scripts, CTAs).
+ * Used by both fetch path and htmlOverride path.
  */
-export async function scrape(url: string): Promise<ScrapeResult> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; WebAngle/1.0; +https://webangle.dev)",
-    },
-    redirect: "follow",
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
-  }
-
-  const html = await res.text();
+function parseHtmlToResult(html: string): ScrapeResult {
   const $ = cheerio.load(html);
 
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
@@ -158,4 +151,35 @@ export async function scrape(url: string): Promise<ScrapeResult> {
     headerSnippet: header || undefined,
     visibleText: visibleText || undefined,
   };
+}
+
+/**
+ * Fetch HTML and parse into ScrapeResult (contact, meta, scripts, CTAs).
+ * When htmlOverride is provided, skips fetch and parses that HTML instead (e.g. from headless render).
+ */
+export async function scrape(
+  url: string,
+  options?: ScrapeOptions
+): Promise<ScrapeResult> {
+  let html: string;
+
+  if (options?.htmlOverride !== undefined) {
+    html = options.htmlOverride;
+  } else {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; WebAngle/1.0; +https://webangle.dev)",
+      },
+      redirect: "follow",
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+    }
+
+    html = await res.text();
+  }
+
+  return parseHtmlToResult(html);
 }

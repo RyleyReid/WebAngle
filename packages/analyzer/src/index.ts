@@ -84,18 +84,38 @@ const TECH_PATTERNS: Array<{ hint: TechHint; test: (r: ScrapeResult) => boolean 
   },
 ];
 
-export function detectTechStack(scrape: ScrapeResult): TechStack {
+export interface DetectTechStackOptions {
+  /** When true, site was JS-rendered so it is dynamic by definition. */
+  renderUsed?: boolean;
+}
+
+export function detectTechStack(
+  scrape: ScrapeResult,
+  opts?: DetectTechStackOptions
+): TechStack {
   const hints: TechHint[] = [];
   for (const { hint, test } of TECH_PATTERNS) {
     if (test(scrape)) hints.push(hint);
+  }
+  if (opts?.renderUsed === true) {
+    hints.push("js-rendered");
+    const staticIdx = hints.indexOf("static");
+    if (staticIdx >= 0) hints.splice(staticIdx, 1); // never static when JS-rendered
   }
   if (hints.length === 0) hints.push("unknown");
 
   const dynamic = detectDynamicSignals(scrape.html);
   const isDynamic =
-    dynamic.hasRootDiv || dynamic.hydrationHints || dynamic.heavyJS;
+    opts?.renderUsed === true ||
+    dynamic.hasRootDiv ||
+    dynamic.hydrationHints ||
+    dynamic.heavyJS;
   const framework =
-    dynamic.hasRootDiv || dynamic.hydrationHints ? "React-based" : undefined;
+    opts?.renderUsed === true ||
+    dynamic.hasRootDiv ||
+    dynamic.hydrationHints
+      ? "React-based"
+      : undefined;
 
   return {
     hints: [...new Set(hints)],
@@ -110,7 +130,7 @@ export async function getPageSpeedMetrics(url: string): Promise<PerformanceMetri
   const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile`;
   const res = await fetch(apiUrl);
   if (!res.ok) {
-    return { mobileScore: 0 };
+    return { mobileScore: null };
   }
   const data = (await res.json()) as PageSpeedResult;
   const lh = data.lighthouseResult;
@@ -122,7 +142,7 @@ export async function getPageSpeedMetrics(url: string): Promise<PerformanceMetri
   const interactive = audits["interactive"]?.numericValue;
 
   return {
-    mobileScore: score != null ? Math.round(score * 100) : 0,
+    mobileScore: score != null ? Math.round(score * 100) : null,
     lcp: lcp != null ? lcp / 1000 : undefined,
     cls: cls != null ? Math.round(cls * 1000) / 1000 : undefined,
     tbt: tbt != null ? Math.round(tbt) : undefined,

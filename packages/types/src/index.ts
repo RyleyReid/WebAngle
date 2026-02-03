@@ -17,6 +17,7 @@ export type TechHint =
   | "wix"
   | "react"
   | "static"
+  | "js-rendered"
   | "unknown";
 
 export interface TechStack {
@@ -28,9 +29,9 @@ export interface TechStack {
   isDynamic?: boolean;
 }
 
-/** Performance metrics from PageSpeed (or similar) */
+/** Performance metrics from PageSpeed (or similar). mobileScore is null when no reliable data (quota, failure, etc.). */
 export interface PerformanceMetrics {
-  mobileScore: number;
+  mobileScore: number | null;
   lcp?: number;
   cls?: number;
   tbt?: number;
@@ -80,6 +81,8 @@ export interface AnalysisResult {
   meta?: {
     scrapeDurationMs?: number;
     cacheHit?: boolean;
+    /** Composite score (performance + style + classification); never 0. */
+    overallScore?: number;
   };
 }
 

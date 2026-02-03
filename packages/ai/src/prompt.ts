@@ -6,6 +6,14 @@ import type {
   UpgradeOpportunity,
 } from "@webangle/types";
 
+export interface StyleContext {
+  score: number;
+  notes: string[];
+  fontCount: number;
+  colorCount: number;
+  usesCssVariables: boolean;
+}
+
 export interface AnalysisContext {
   url: string;
   contact: ContactData;
@@ -14,6 +22,8 @@ export interface AnalysisContext {
   classification: SiteClassification;
   /** Short summary for AI: meta, CTAs, footer/header snippets */
   contentSummary: string;
+  /** Present when Playwright was used (render-aware style analysis). */
+  style?: StyleContext | null;
 }
 
 const SYSTEM_PROMPT = `You are an expert outreach strategist for freelance developers and web agencies. Your job is to turn website teardowns into credible, non-generic pitch angles that a developer could use in cold email or DMs.
@@ -33,7 +43,13 @@ function buildUserPrompt(ctx: AnalysisContext): string {
     `Contact found: emails ${ctx.contact.emails.length}, phones ${ctx.contact.phones.length}, social: ${Object.keys(ctx.contact.socialLinks).join(", ") || "none"}.`,
     `Tech hints: ${ctx.techStack.hints.join(", ")}. Generator: ${ctx.techStack.generator ?? "none"}.${ctx.techStack.framework ? ` Framework: ${ctx.techStack.framework}.` : ""}${ctx.techStack.isDynamic ? " Site is dynamic/SPA." : ""}`,
     `Site type: ${ctx.classification.siteType} (confidence ${ctx.classification.confidence}).`,
-    `Performance: mobile score ${ctx.performance.mobileScore}/100${ctx.performance.lcp != null ? `, LCP ~${ctx.performance.lcp}s` : ""}${ctx.performance.cls != null ? `, CLS ${ctx.performance.cls}` : ""}${ctx.performance.tbt != null ? `, TBT ${ctx.performance.tbt}ms` : ""}.`,
+    `Performance: mobile score ${ctx.performance.mobileScore != null ? `${ctx.performance.mobileScore}/100` : "no reliable data"}${ctx.performance.lcp != null ? `, LCP ~${ctx.performance.lcp}s` : ""}${ctx.performance.cls != null ? `, CLS ${ctx.performance.cls}` : ""}${ctx.performance.tbt != null ? `, TBT ${ctx.performance.tbt}ms` : ""}.`,
+    ...(ctx.style
+      ? [
+          ``,
+          `Style (maintainability / consistency): score ${ctx.style.score}/100, fonts ${ctx.style.fontCount}, colors ${ctx.style.colorCount}, CSS variables ${ctx.style.usesCssVariables ? "yes" : "no"}.${ctx.style.notes.length ? ` Notes: ${ctx.style.notes.join("; ")}.` : ""}`,
+        ]
+      : []),
     ``,
     `Content/signals summary:`,
     ctx.contentSummary,

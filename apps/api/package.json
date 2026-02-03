@@ -19,7 +19,9 @@
     "dotenv": "^16.4.5",
     "@webangle/ai": "workspace:*",
     "@webangle/analyzer": "workspace:*",
+    "@webangle/renderer": "workspace:*",
     "@webangle/scraper": "workspace:*",
+    "@webangle/style-analyzer": "workspace:*",
     "@webangle/types": "workspace:*"
   },
   "devDependencies": {
