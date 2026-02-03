@@ -20,14 +20,44 @@
   border-bottom: 1px solid $stone-200;
   background: white;
   padding: 0;
+}
+
+.headerInner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 0 $space-4;
+  max-width: $max-width-content;
+  margin: 0 auto;
+}
+
+.headerLogoLink {
+  display: block;
+  line-height: 0;
 }
 
 .headerLogo {
   height: 5.5rem;
   width: auto;
   display: block;
+}
+
+.headerNav {
+  display: flex;
+  align-items: center;
+  gap: $space-6;
+}
+
+.headerNavLink {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: $stone-600;
+  text-decoration: none;
+}
+
+.headerNavLink:hover,
+.headerNavLink:global(.active) {
+  color: $primary;
 }
 
 .main {
@@ -55,8 +85,8 @@
 
   &:focus {
     outline: none;
-    border-color: $amber-600;
-    box-shadow: 0 0 0 1px $amber-600;
+    border-color: $primary;
+    box-shadow: 0 0 0 1px $primary;
   }
 
   &:disabled {
@@ -80,11 +110,11 @@
 }
 
 .btnPrimary {
-  background: $amber-600;
+  background: $primary;
   color: white;
 
   &:hover:not(:disabled) {
-    background: $amber-700;
+    background: $primary-hover;
   }
 }
 
@@ -139,7 +169,7 @@
 }
 
 .link {
-  color: $amber-700;
+  color: $primary;
   text-decoration: underline;
 }
 

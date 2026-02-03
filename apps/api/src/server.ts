@@ -1,3 +1,4 @@
+import "dotenv/config";
 import http from "node:http";
 import type { AnalyzeRequest } from "@webangle/types";
 import { runAnalysis } from "./analyze.js";

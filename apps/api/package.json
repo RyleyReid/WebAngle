@@ -10,6 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "@webangle/ai": "workspace:*",
     "@webangle/analyzer": "workspace:*",
     "@webangle/scraper": "workspace:*",
