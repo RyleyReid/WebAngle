@@ -1,0 +1,21 @@
+// Prisma schema for WebAngle API cache
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Analysis {
+  id        String   @id @default(cuid())
+  urlKey    String   @unique(map: "Analysis_urlKey_key")
+  url       String
+  result    String   // JSON string of AnalysisResult
+  createdAt DateTime @map("created_at")
+
+  @@map("analyses")
+}

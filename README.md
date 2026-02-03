@@ -20,7 +20,19 @@ pnpm install
 ## Environment
 
 - **API**: set `OPENAI_API_KEY` for AI-generated pitch angles.
+- **API**: set `DATABASE_URL` for Prisma (default: `file:./data/cache.db` in `apps/api/.env`).
 - Optional: `PORT` (default `3001`) for the API.
+
+## Database (Prisma + SQLite)
+
+The API uses **Prisma** with **SQLite** to cache analysis results. Schema and migrations live in `apps/api/prisma/`.
+
+- **Apply migrations** (e.g. after clone or before first run):  
+  `cd apps/api && pnpm db:migrate`
+- **Create a new migration** after editing `prisma/schema.prisma`:  
+  `cd apps/api && pnpm db:migrate:dev`
+- **Regenerate Prisma Client** (after schema change):  
+  `cd apps/api && pnpm db:generate`
 
 ## Run
 

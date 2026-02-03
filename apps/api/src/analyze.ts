@@ -17,7 +17,7 @@ export async function runAnalysis(
   options: AnalyzeOptions
 ): Promise<AnalysisResult> {
   const url = normalizeUrl(body.url);
-  const cached = getCached(url);
+  const cached = await getCached(url);
   if (cached) return cached;
 
   const start = Date.now();
@@ -62,6 +62,6 @@ export async function runAnalysis(
     meta: { scrapeDurationMs, cacheHit: false },
   };
 
-  setCached(url, result);
+  await setCached(url, result);
   return result;
 }
