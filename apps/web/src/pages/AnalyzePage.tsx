@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@clerk/clerk-react";
 import styles from "../App.module.scss";
 
 const API_BASE = "/api";
@@ -102,12 +104,43 @@ interface AnalysisResult {
 }
 
 export default function AnalyzePage() {
+  const { getToken } = useAuth();
+  const [searchParams] = useSearchParams();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const targetUrl = searchParams.get("url");
+    if (!targetUrl) return;
+    const urlToFetch: string = targetUrl;
+    let cancelled = false;
+    async function loadAnalysis() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `${API_BASE}/analyze?url=${encodeURIComponent(urlToFetch)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load analysis");
+        setResult(data);
+        setUrl(urlToFetch);
+        setSelectedOpportunityId(data.opportunities?.[0]?.id ?? null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Load failed");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadAnalysis();
+    return () => { cancelled = true; };
+  }, [searchParams, getToken]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,9 +149,14 @@ export default function AnalyzePage() {
     setResult(null);
     setLoading(true);
     try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in required");
       const res = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ url: url.trim() }),
       });
       const data = await res.json();
@@ -174,23 +212,23 @@ export default function AnalyzePage() {
       (result ? Math.round(result.classification.confidence * 100) : null),
   };
 
-  const keyScoreParts = [
-    scoreValues.overall != null
-      ? `Overall ${Math.round(scoreValues.overall)}/100`
-      : null,
-    scoreValues.performance != null
-      ? `Perf ${Math.round(scoreValues.performance)}/100`
-      : null,
-    scoreValues.style != null
-      ? `Style ${Math.round(scoreValues.style)}/100`
-      : null,
-    scoreValues.responsive != null
-      ? `Resp ${Math.round(scoreValues.responsive)}/100`
-      : null,
-    scoreValues.content != null
-      ? `Content ${Math.round(scoreValues.content)}/100`
-      : null,
-  ].filter(Boolean) as string[];
+  /** Letter grade from overall score (UI only, not saved). */
+  function overallLetterGrade(score: number | null): string {
+    if (score == null) return "—";
+    const n = Math.round(score);
+    if (n >= 90) return "A";
+    if (n >= 80) return "B";
+    if (n >= 70) return "C";
+    if (n >= 60) return "D";
+    return "F";
+  }
+
+  const hasAnyScore =
+    scoreValues.overall != null ||
+    scoreValues.performance != null ||
+    scoreValues.style != null ||
+    scoreValues.responsive != null ||
+    scoreValues.content != null;
 
   return (
     <>
@@ -234,6 +272,68 @@ export default function AnalyzePage() {
             </a>
             {result.meta?.cacheHit && (
               <span className={styles.linkMuted}>(cached)</span>
+            )}
+
+            {hasAnyScore && (
+              <div className={styles.scoreSection}>
+                <div
+                  className={styles.overallCircle}
+                  style={
+                    {
+                      "--score-hue": scoreValues.overall != null
+                        ? (Math.min(100, Math.max(0, scoreValues.overall)) / 100) * 120
+                        : 0,
+                    } as React.CSSProperties
+                  }
+                >
+                  <span className={styles.overallNumber}>
+                    {scoreValues.overall != null
+                      ? Math.round(scoreValues.overall)
+                      : "—"}
+                  </span>
+                  <span className={styles.overallGrade}>
+                    {overallLetterGrade(scoreValues.overall)}
+                  </span>
+                </div>
+                <div className={styles.scoreBoxes}>
+                  <div className={`${styles.scoreBox} ${styles.scoreBoxPerf}`}>
+                    <span className={styles.scoreBoxLabel}>Performance</span>
+                    <span className={styles.scoreBoxValue}>
+                      {scoreValues.performance != null
+                        ? Math.round(scoreValues.performance)
+                        : "—"}
+                    </span>
+                    <span className={styles.scoreBoxMax}></span>
+                  </div>
+                  <div className={`${styles.scoreBox} ${styles.scoreBoxStyle}`}>
+                    <span className={styles.scoreBoxLabel}>Style</span>
+                    <span className={styles.scoreBoxValue}>
+                      {scoreValues.style != null
+                        ? Math.round(scoreValues.style)
+                        : "—"}
+                    </span>
+                    <span className={styles.scoreBoxMax}></span>
+                  </div>
+                  <div className={`${styles.scoreBox} ${styles.scoreBoxResp}`}>
+                    <span className={styles.scoreBoxLabel}>Responsiveness</span>
+                    <span className={styles.scoreBoxValue}>
+                      {scoreValues.responsive != null
+                        ? Math.round(scoreValues.responsive)
+                        : "—"}
+                    </span>
+                    <span className={styles.scoreBoxMax}></span>
+                  </div>
+                  <div className={`${styles.scoreBox} ${styles.scoreBoxContent}`}>
+                    <span className={styles.scoreBoxLabel}>Content</span>
+                    <span className={styles.scoreBoxValue}>
+                      {scoreValues.content != null
+                        ? Math.round(scoreValues.content)
+                        : "—"}
+                    </span>
+                    <span className={styles.scoreBoxMax}></span>
+                  </div>
+                </div>
+              </div>
             )}
           </section>
 
@@ -298,15 +398,11 @@ export default function AnalyzePage() {
                 {result.classification.confidence})
               </p>
               <p>
-                Mobile score: {result.performance.mobileScore != null ? `${result.performance.mobileScore}/100` : "— (no data)"}
-                {result.performance.lcp != null &&
-                  ` · LCP ~${result.performance.lcp}s`}
-                {result.performance.tbt != null &&
-                  ` · TBT ${result.performance.tbt}ms`}
+                {result.performance.lcp != null && `LCP ~${result.performance.lcp}s`}
+                {result.performance.lcp != null && result.performance.tbt != null && " · "}
+                {result.performance.tbt != null && `TBT ${result.performance.tbt}ms`}
+                {result.performance.lcp == null && result.performance.tbt == null && "— (no metrics)"}
               </p>
-              {keyScoreParts.length > 0 && (
-                <p>{keyScoreParts.join(" · ")}</p>
-              )}
             </div>
           </section>
 
@@ -353,7 +449,7 @@ export default function AnalyzePage() {
             <h2
               className={`${styles.sectionTitle} ${styles.sectionTitleSpaced}`}
             >
-              Advice &amp; score table
+              Advice table
             </h2>
             <div className={styles.tableWrapper}>
               <table className={styles.adviceTable}>
@@ -363,7 +459,6 @@ export default function AnalyzePage() {
                     <th scope="col">Issue summary</th>
                     <th scope="col">Business impact</th>
                     <th scope="col">Recommended fix</th>
-                    <th scope="col">Key scores</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -391,63 +486,16 @@ export default function AnalyzePage() {
                         <td>{opp.issue}</td>
                         <td>{opp.businessImpact}</td>
                         <td>{opp.suggestedFix}</td>
-                        <td>{keyScoreParts.length > 0 ? keyScoreParts.join(" · ") : "—"}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className={styles.noData}>
+                      <td colSpan={4} className={styles.noData}>
                         No advice available for this site.
                       </td>
                     </tr>
                   )}
                 </tbody>
-                {(scoreValues.overall != null ||
-                  scoreValues.performance != null ||
-                  scoreValues.responsive != null ||
-                  scoreValues.content != null) && (
-                  <tfoot>
-                    <tr>
-                      <th scope="row">Performance details</th>
-                      <td colSpan={4}>
-                        {result.performance.mobileScore != null
-                          ? `Mobile score ${result.performance.mobileScore}/100 · LCP ${
-                              result.performance.lcp ?? "—"
-                            }s · TBT ${result.performance.tbt ?? "—"}ms`
-                          : "No reliable PageSpeed data"}
-                      </td>
-                    </tr>
-                    <tr>
-                      <th scope="row">Responsive score</th>
-                      <td colSpan={4}>
-                        {scoreValues.responsive != null
-                          ? `${Math.round(scoreValues.responsive)}/100`
-                          : "—"}
-                        {" · "}
-                        Content confidence{" "}
-                        {Math.round(result.classification.confidence * 100)}/100
-                      </td>
-                    </tr>
-                    <tr>
-                      <th scope="row">Overall score</th>
-                      <td colSpan={4}>
-                        {scoreValues.overall != null
-                          ? `${Math.round(scoreValues.overall)}/100`
-                          : "—"}
-                        {" · "}
-                        Style{" "}
-                        {scoreValues.style != null
-                          ? `${Math.round(scoreValues.style)}/100`
-                          : "—"}
-                        {" · "}
-                        Content{" "}
-                        {scoreValues.content != null
-                          ? `${Math.round(scoreValues.content)}/100`
-                          : "—"}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
           </section>

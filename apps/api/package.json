@@ -8,21 +8,22 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "clean": "rm -rf dist",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@clerk/backend": "^2.30.0",
     "@prisma/client": "^5.22.0",
-    "dotenv": "^16.4.5",
     "@webangle/ai": "workspace:*",
     "@webangle/analyzer": "workspace:*",
     "@webangle/renderer": "workspace:*",
     "@webangle/scraper": "workspace:*",
     "@webangle/style-analyzer": "workspace:*",
-    "@webangle/types": "workspace:*"
+    "@webangle/types": "workspace:*",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,8 +1,9 @@
-// Prisma schema for WebAngle API cache
-// https://pris.ly/d/prisma-schema
+// Prisma schema for WebAngle API — Websites + user search history only.
+// Auth via Clerk; no Users table.
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../prisma-client"
 }
 
 datasource db {
@@ -10,12 +11,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Analysis {
-  id        String   @id @default(cuid())
-  urlKey    String   @unique(map: "Analysis_urlKey_key")
-  url       String
-  result    String   // JSON string of AnalysisResult
-  createdAt DateTime @map("created_at")
+/// One row per unique website (by normalized URL). Scores and result updated on each analysis.
+model Website {
+  id               String    @id @default(cuid())
+  url              String    @unique(map: "Website_url_key")
+  name             String?
+  emails           String    // JSON array of strings
+  socialLinks      String    // JSON object: platform -> url
+  overallScore     Int?
+  performanceScore Int?
+  styleScore       Int?
+  responsiveScore  Int?
+  contentScore     Int?
+  analysisCount    Int       @default(1)
+  lastAnalyzedAt   DateTime?
+  result           String    // JSON: full AnalysisResult
 
-  @@map("analyses")
+  searches WebsiteSearch[]
+
+  @@map("websites")
+}
+
+/// One row per analysis run by a user. User-scoped; links to Website.
+model WebsiteSearch {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  websiteId  String   @map("website_id")
+  analysisId String   @map("analysis_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([websiteId])
+  @@index([userId, createdAt])
+  @@map("website_searches")
 }

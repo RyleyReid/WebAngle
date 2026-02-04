@@ -6,4 +6,5 @@ dist
 *.db
 *.sqlite
 apps/api/data
+apps/api/prisma-client
 .DS_Store

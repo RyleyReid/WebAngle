@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/layout.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/pages/analyzepage.tsx","./src/pages/howitworks.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/layout.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/protectedroute.tsx","./src/pages/analyzepage.tsx","./src/pages/howitworks.tsx","./src/pages/signinpage.tsx","./src/pages/signuppage.tsx","./src/pages/websitespage.tsx"],"version":"5.9.3"}

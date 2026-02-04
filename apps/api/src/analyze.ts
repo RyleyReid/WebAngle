@@ -14,8 +14,15 @@ import {
 import { generateOpportunities } from "@webangle/ai";
 import { scoreStyles } from "@webangle/style-analyzer";
 import type { StyleSignals } from "@webangle/style-analyzer";
+import { randomUUID } from "node:crypto";
 import { getCached, setCached } from "./cache.js";
 import { logger } from "./logger.js";
+
+export type RunAnalysisResult = {
+  result: AnalysisResult;
+  analysisId: string;
+  websiteId: string;
+};
 
 /** Detect HTML shell only (SPA before hydration). */
 function isHtmlShell(homepage: ScrapeResult): boolean {
@@ -97,10 +104,10 @@ function summarizeScrape(url: string, s: ScrapeResult): Record<string, unknown> 
 export async function runAnalysis(
   body: AnalyzeRequest,
   options: AnalyzeOptions
-): Promise<AnalysisResult> {
+): Promise<RunAnalysisResult> {
   const rawUrl = body.url;
   const url = normalizeUrl(rawUrl);
-  const analysisId = `${url.slice(0, 60)}${url.length > 60 ? "…" : ""}`;
+  const analysisId = randomUUID();
 
   logger.info("analyze:start", "Analysis started", {
     rawUrl,
@@ -112,9 +119,13 @@ export async function runAnalysis(
   if (cached) {
     logger.info("analyze:cache", "Cache hit, returning cached result", {
       url,
-      opportunitiesCount: cached.opportunities?.length ?? 0,
+      opportunitiesCount: cached.result.opportunities?.length ?? 0,
     });
-    return cached;
+    return {
+      result: cached.result,
+      analysisId,
+      websiteId: cached.websiteId,
+    };
   }
   logger.debug("analyze:cache", "Cache miss, running full analysis", { url });
 
@@ -386,12 +397,12 @@ export async function runAnalysis(
     },
   };
 
-  await setCached(url, result);
+  const websiteId = await setCached(url, result);
   logger.info("analyze:done", "Analysis completed and cached", {
     url,
     totalDurationMs: Date.now() - start,
     opportunitiesCount: result.opportunities.length,
   });
 
-  return result;
+  return { result, analysisId, websiteId };
 }

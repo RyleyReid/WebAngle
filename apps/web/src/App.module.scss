@@ -134,6 +134,40 @@
   }
 }
 
+.btnDelete {
+  font-size: 0.75rem;
+  padding: $space-1 $space-2;
+  background: $red-50;
+  color: $red-700;
+  border: 1px solid $red-200;
+
+  &:hover:not(:disabled) {
+    background: $red-100;
+  }
+}
+
+.websitesTableRow {
+  cursor: pointer;
+
+  &:hover {
+    background: $stone-50;
+  }
+}
+
+.socialIconCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: $space-1;
+
+  .socialIcon {
+    width: 18px;
+    height: 18px;
+    fill: $primary;
+    display: block;
+  }
+}
+
 .errorBanner {
   margin-bottom: $space-6;
   padding: $space-3 $space-4;
@@ -178,6 +212,119 @@
   font-size: 0.75rem;
   color: $stone-400;
   text-decoration: none;
+}
+
+// Score section under URL: circle (gradient) + 4 boxes
+.scoreSection {
+  margin-top: $space-6;
+  padding-top: $space-4;
+  border-top: 1px solid $stone-100;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $space-6;
+}
+
+.overallCircle {
+  --score-hue: 60;
+  width: 6rem;
+  height: 6rem;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 50%;
+  background: hsl(var(--score-hue), 65%, 42%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.overallNumber {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.overallGrade {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.scoreBoxes {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: auto;
+  margin-right: auto;
+  gap: $space-2;
+}
+
+.scoreBox {
+  min-width: 4.5rem;
+  padding: $space-2 $space-3;
+  border-radius: $radius-lg;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.scoreBoxLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.scoreBoxValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.scoreBoxMax {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.scoreBoxPerf {
+  background: #dbeafe;
+  color: #1e40af;
+  .scoreBoxLabel,
+  .scoreBoxMax {
+    color: #1e40af;
+  }
+}
+
+.scoreBoxStyle {
+  background: #ede9fe;
+  color: #5b21b6;
+  .scoreBoxLabel,
+  .scoreBoxMax {
+    color: #5b21b6;
+  }
+}
+
+.scoreBoxResp {
+  background: #ccfbf1;
+  color: #0f766e;
+  .scoreBoxLabel,
+  .scoreBoxMax {
+    color: #0f766e;
+  }
+}
+
+.scoreBoxContent {
+  background: #ffedd5;
+  color: #c2410c;
+  .scoreBoxLabel,
+  .scoreBoxMax {
+    color: #c2410c;
+  }
 }
 
 .contactList,
@@ -304,4 +451,12 @@
     font-weight: 500;
     color: $stone-800;
   }
+}
+
+.authPage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 60vh;
+  padding: $space-8 $space-4;
 }
