@@ -83,6 +83,14 @@ export interface AnalysisResult {
     cacheHit?: boolean;
     /** Composite score (performance + style + classification); never 0. */
     overallScore?: number;
+    /** Normalized scores used for the overall score. */
+    scores?: {
+      performance: number;
+      style: number;
+      responsive: number;
+      content: number;
+      overall: number;
+    };
   };
 }
 

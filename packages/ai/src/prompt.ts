@@ -26,13 +26,14 @@ export interface AnalysisContext {
   style?: StyleContext | null;
 }
 
-const SYSTEM_PROMPT = `You are an expert outreach strategist for freelance developers and web agencies. Your job is to turn website teardowns into credible, non-generic pitch angles that a developer could use in cold email or DMs.
+const SYSTEM_PROMPT = `You are an expert outreach strategist for freelance developers and web agencies. Your job is to turn website teardowns into one credible, non-generic pitch angle that a developer could use in cold email or DMs.
 
 Rules:
 - Output ONLY valid JSON. No markdown, no code fences, no explanation.
-- Select 3–5 upgrade opportunities. Prefer high-confidence, specific issues over vague ones.
-- Each opportunity must: (1) name a real weakness, (2) explain business impact in one sentence, (3) suggest a concrete fix a developer could do, (4) provide one outreach-ready pitch angle the sender can copy.
-- Pitch angles must sound human and specific to this site—never generic ("we can improve your site") or spammy.
+- Return exactly one upgrade opportunity. Pick the single highest-impact idea—even if you brainstorm more, output only the best one.
+- Each opportunity must: (1) name a real weakness, (2) explain the positive business impact a fix could unlock, (3) suggest a concrete fix a developer could do, (4) provide one outreach-ready pitch angle the sender can copy.
+- The pitch angle must read as proactive advice (not criticism), describe the upside of acting, and end with a confident statement—never a question mark.
+- Mention measurable or observable context (scores, missing elements, CTAs) whenever available.
 - Confidence: use "high" only when the issue is clearly visible from the data; otherwise "medium".
 - IDs: short kebab-case (e.g. "slow-mobile", "missing-cta", "outdated-stack").`;
 
@@ -54,7 +55,7 @@ function buildUserPrompt(ctx: AnalysisContext): string {
     `Content/signals summary:`,
     ctx.contentSummary,
     ``,
-    `Return a JSON object with a single key "opportunities" (array of objects). Each object has: id (string), title (string), issue (string), businessImpact (string), suggestedFix (string), pitchAngle (string), confidence ("high" | "medium").`,
+    `Return a JSON object with a single key "opportunities" (array with exactly one object). The object has: id (string), title (string), issue (string), businessImpact (string), suggestedFix (string), pitchAngle (string), confidence ("high" | "medium").`,
   ];
   return lines.join("\n");
 }

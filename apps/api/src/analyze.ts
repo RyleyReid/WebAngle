@@ -71,6 +71,16 @@ function normalizeScore(
   return value;
 }
 
+function scoreResponsive(r: {
+  hasViewportMeta: boolean;
+  hasHorizontalOverflow: boolean;
+}): number {
+  let score = 100;
+  if (!r.hasViewportMeta) score -= 30;
+  if (r.hasHorizontalOverflow) score -= 40;
+  return Math.max(score, 50);
+}
+
 function summarizeScrape(url: string, s: ScrapeResult): Record<string, unknown> {
   return {
     url,
@@ -139,6 +149,7 @@ export async function runAnalysis(
   let renderUsed = false;
   let styleSignals: StyleSignals | null = null;
   let styleScore: ReturnType<typeof scoreStyles> | null = null;
+  let responsiveScore: number | null = null;
 
   const needsRender = isHtmlShell(homepage);
   if (needsRender) {
@@ -153,11 +164,13 @@ export async function runAnalysis(
       renderUsed = true;
       styleSignals = rendered.styleSignals;
       styleScore = scoreStyles(rendered.styleSignals);
+      responsiveScore = scoreResponsive(rendered.responsiveSignals);
       logger.info("analyze:render", "Render completed", {
         url,
         htmlLength: rendered.html.length,
         textLength: rendered.text.length,
         styleScore: styleScore.score,
+        responsiveScore,
         durationMs: Date.now() - renderStart,
       });
       homepage = await scrape(url, { htmlOverride: rendered.html });
@@ -280,11 +293,29 @@ export async function runAnalysis(
 
   const perfScore = normalizeScore(performance.mobileScore, 70);
   const styleFinal = normalizeScore(styleScore?.score, 70);
+  const responsiveFinal = normalizeScore(responsiveScore, 70);
   const contentScoreRaw = Math.round(classification.confidence * 100);
   const contentScore = normalizeScore(contentScoreRaw, 70);
 
+  const emptyRawScores = [
+    performance.mobileScore == null && "performance",
+    styleScore?.score == null && "style",
+    responsiveScore == null && "responsive",
+  ].filter(Boolean) as string[];
+  if (emptyRawScores.length > 0) {
+    logger.warn("analyze:score", "Empty score values (using fallback)", {
+      url,
+      emptyRawScores,
+    });
+  }
+
   const overallScore = Math.max(
-    Math.round(perfScore * 0.4 + styleFinal * 0.3 + contentScore * 0.3),
+    Math.round(
+      perfScore * 0.4 +
+        styleFinal * 0.25 +
+        responsiveFinal * 0.15 +
+        contentScore * 0.2
+    ),
     1
   );
 
@@ -292,11 +323,13 @@ export async function runAnalysis(
     raw: {
       mobile: performance.mobileScore,
       style: styleScore?.score,
+      responsive: responsiveScore,
       content: contentScoreRaw,
     },
     normalized: {
       mobile: perfScore,
       style: styleFinal,
+      responsive: responsiveFinal,
       content: contentScore,
     },
     overallScore,
@@ -339,7 +372,18 @@ export async function runAnalysis(
     performance,
     classification,
     opportunities,
-    meta: { scrapeDurationMs, cacheHit: false, overallScore },
+    meta: {
+      scrapeDurationMs,
+      cacheHit: false,
+      overallScore,
+      scores: {
+        performance: perfScore,
+        style: styleFinal,
+        responsive: responsiveFinal,
+        content: contentScore,
+        overall: overallScore,
+      },
+    },
   };
 
   await setCached(url, result);

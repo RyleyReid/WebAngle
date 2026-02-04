@@ -38,19 +38,23 @@ export async function generateOpportunities(
 
   const parsed = JSON.parse(content) as AIOpportunitiesResponse;
   const opportunities = parsed?.opportunities ?? [];
-  if (!Array.isArray(opportunities)) {
-    throw new Error("AI response missing opportunities array");
+  if (!Array.isArray(opportunities) || opportunities.length === 0) {
+    throw new Error("AI response missing required opportunity");
   }
 
-  return opportunities.slice(0, 5).map((o) => ({
-    id: String(o.id ?? "").replace(/\s/g, "-") || "opportunity",
-    title: String(o.title ?? ""),
-    issue: String(o.issue ?? ""),
-    businessImpact: String(o.businessImpact ?? ""),
-    suggestedFix: String(o.suggestedFix ?? ""),
-    pitchAngle: String(o.pitchAngle ?? ""),
-    confidence: o.confidence === "high" ? "high" : "medium",
-  }));
+  const [top] = opportunities;
+
+  return [
+    {
+      id: String(top.id ?? "").replace(/\s/g, "-") || "opportunity",
+      title: String(top.title ?? ""),
+      issue: String(top.issue ?? ""),
+      businessImpact: String(top.businessImpact ?? ""),
+      suggestedFix: String(top.suggestedFix ?? ""),
+      pitchAngle: String(top.pitchAngle ?? ""),
+      confidence: top.confidence === "high" ? "high" : "medium",
+    },
+  ];
 }
 
 export { getAnalysisPrompt } from "./prompt.js";

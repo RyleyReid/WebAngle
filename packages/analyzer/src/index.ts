@@ -45,6 +45,17 @@ export function detectDynamicSignals(html: string): {
   };
 }
 
+function detectReact(scrape: ScrapeResult, renderUsed?: boolean): boolean {
+  if (!renderUsed) return false;
+  return (
+    scrape.html.includes('id="root"') ||
+    scrape.html.includes("__REACT_DEVTOOLS_GLOBAL_HOOK__") ||
+    scrape.scriptSources.some((s) =>
+      /react|chunk|main\.(js|ts)|assets\/index/i.test(s)
+    )
+  );
+}
+
 const TECH_PATTERNS: Array<{ hint: TechHint; test: (r: ScrapeResult) => boolean }> = [
   {
     hint: "wordpress",
@@ -80,7 +91,8 @@ const TECH_PATTERNS: Array<{ hint: TechHint; test: (r: ScrapeResult) => boolean 
     hint: "static",
     test: (r) =>
       r.scriptSources.length < 3 &&
-      !r.scriptSources.some((s) => /wp-|shopify|webflow|wix/i.test(s)),
+      !r.scriptSources.some((s) => /wp-|shopify|webflow|wix/i.test(s)) &&
+      !r.html.includes('id="root"'),
   },
 ];
 
@@ -97,6 +109,8 @@ export function detectTechStack(
   for (const { hint, test } of TECH_PATTERNS) {
     if (test(scrape)) hints.push(hint);
   }
+  const isReact = detectReact(scrape, opts?.renderUsed);
+  if (isReact) hints.push("react");
   if (opts?.renderUsed === true) {
     hints.push("js-rendered");
     const staticIdx = hints.indexOf("static");
@@ -110,12 +124,12 @@ export function detectTechStack(
     dynamic.hasRootDiv ||
     dynamic.hydrationHints ||
     dynamic.heavyJS;
-  const framework =
-    opts?.renderUsed === true ||
-    dynamic.hasRootDiv ||
-    dynamic.hydrationHints
-      ? "React-based"
-      : undefined;
+  let framework: TechStack["framework"] | undefined;
+  if (isReact) {
+    framework = "React";
+  } else if (isDynamic) {
+    framework = "SPA";
+  }
 
   return {
     hints: [...new Set(hints)],

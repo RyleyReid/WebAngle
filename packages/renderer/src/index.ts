@@ -7,6 +7,10 @@ export interface RenderedPage {
   html: string;
   text: string;
   styleSignals: StyleSignals;
+  responsiveSignals: {
+    hasViewportMeta: boolean;
+    hasHorizontalOverflow: boolean;
+  };
 }
 
 /**
@@ -81,7 +85,16 @@ export async function renderPage(url: string): Promise<RenderedPage> {
       };
     });
 
-    return { html, text, styleSignals };
+    const responsiveSignals = await page.evaluate(() => {
+      const hasViewportMeta = !!document.querySelector('meta[name="viewport"]');
+      const overflow = document.body.scrollWidth - window.innerWidth;
+      return {
+        hasViewportMeta,
+        hasHorizontalOverflow: overflow > 20,
+      };
+    });
+
+    return { html, text, styleSignals, responsiveSignals };
   } finally {
     await browser.close();
   }
